@@ -26,12 +26,22 @@ def setup(file: str, interpolation: int):
                 print(os.getcwd() + '/upscaled_' + file + "/upscaled_" + filename)
                 writeSuccess = cv.imwrite(os.getcwd() + '/upscaled_' + file + "/upscaled_" + filename, img_upscaled)
                 print('Write Success: ' + f'{writeSuccess}' + ' | ' + file + ' written in ' + '/upscaled_' + file  + ' : upscaled_' + filename)
+                psnr = cv.PSNR(img, img_upscaled)
+                print('PSNR: ' + str(psnr))
             elif interpolation == 1:
                 img_downscaled = cv.resize(img, (int(width/4), int(height/4)), cv.INTER_CUBIC)
                 img_upscaled = cv.resize(img_downscaled, (int(width), int(height)), cv.INTER_CUBIC)
                 cv.imwrite(os.getcwd() + '/upscaled_' + file + "/upscaled_" + filename,img_upscaled)
+                psnr = cv.PSNR(img, img_upscaled)
+                print('PSNR: ' + str(psnr))
             else:
                 print("ERROR on interpolation input!")
                 exit
 
 #setup('bsds', 0)
+
+def evaluate(file: str):
+    originalImg = cv.imread(file + '/' + filename)
+    alteredImg = cv.imread('upscaled_' + file + '/upscaled_' + filename)
+    psnr = cv.PSNR(originalImg, alteredImg)
+    print('PSNR: ' + psnr)
