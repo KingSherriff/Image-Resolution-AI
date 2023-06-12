@@ -1,8 +1,8 @@
 # check package versions
 import sys
 import keras
-import cv2
 import numpy
+import cv2
 import matplotlib
 import skimage
 
@@ -16,9 +16,9 @@ print('Scikit-Image: {}'.format(skimage.__version__))
 from keras.models import Sequential
 from keras.layers import Conv2D
 from keras.optimizers import Adam
-from skimage.measure import compare_ssim as ssim
+from skimage.metrics import structural_similarity as ssim
 from matplotlib import pyplot as plt
-import cv2
+import cv2 as cv
 import numpy as np
 import math
 import os
@@ -88,15 +88,15 @@ def prepareImage(file: str, interpolation: int):
                 print("ERROR on interpolation input!")
                 exit
 
-prepareImages('', 0)
+prepareImage('bsds', 0)
 
 # test the generated images using the image quality metrics
 
 for file in os.listdir('images/'):
 
     # open target and reference images
-    target = cv2.imread('images/{}'.format(file))
-    ref = cv2.imread('source/{}'.format(file))
+    target = cv.imread('images/{}'.format(file))
+    ref = cv.imread('source/{}'.format(file))
 
     # calculate score
     scores = compare_images(target, ref)
@@ -126,4 +126,110 @@ def model():
 
     return SRCNN
 
+# define necessary image processing functions
 
+def modcrop(img, scale):
+    tmpsz = img.shape
+    sz = tmpsz[0:2]
+    sz = sz - np.mod(sz, scale)
+    img = img[0:sz[0], 1:sz[1]]
+    return img
+
+
+def shave(image, border):
+    img = image[border: -border, border: -border]
+    return img
+# define main prediction function
+
+def predict(image_path):
+    
+    # load the srcnn model with weights
+    srcnn = model()
+    srcnn.load_weights('3051crop_weight_200.h5')
+    
+    # load the degraded and reference images
+    path, file = os.path.split(image_path)
+    degraded = cv.imread(image_path)
+    ref = cv.imread('source/{}'.format(file))
+    
+    # preprocess the image with modcrop
+    ref = modcrop(ref, 3)
+    degraded = modcrop(degraded, 3)
+    
+    # convert the image to YCrCb - (srcnn trained on Y channel)
+    temp = cv.cvtColor(degraded, cv.COLOR_BGR2YCrCb)
+    
+    # create image slice and normalize  
+    Y = numpy.zeros((1, temp.shape[0], temp.shape[1], 1), dtype=float)
+    Y[0, :, :, 0] = temp[:, :, 0].astype(float) / 255
+    
+    # perform super-resolution with srcnn
+    pre = srcnn.predict(Y, batch_size=1)
+    
+    # post-process output
+    pre *= 255
+    pre[pre[:] > 255] = 255
+    pre[pre[:] < 0] = 0
+    pre = pre.astype(np.uint8)
+    
+    # copy Y channel back to image and convert to BGR
+    temp = shave(temp, 6)
+    temp[:, :, 0] = pre[0, :, :, 0]
+    output = cv.cvtColor(temp, cv.COLOR_YCrCb2BGR)
+    
+    # remove border from reference and degraged image
+    ref = shave(ref.astype(np.uint8), 6)
+    degraded = shave(degraded.astype(np.uint8), 6)
+    
+    # image quality calculations
+    scores = []
+    scores.append(compare_images(degraded, ref))
+    scores.append(compare_images(output, ref))
+    
+    # return images and scores
+    return ref, degraded, output, scores
+ref, degraded, output, scores = predict('images/flowers.bmp')
+
+# print all scores for all images
+print('Degraded Image: \nPSNR: {}\nMSE: {}\nSSIM: {}\n'.format(scores[0][0], scores[0][1], scores[0][2]))
+print('Reconstructed Image: \nPSNR: {}\nMSE: {}\nSSIM: {}\n'.format(scores[1][0], scores[1][1], scores[1][2]))
+
+
+# display images as subplots
+fig, axs = plt.subplots(1, 3, figsize=(20, 8))
+axs[0].imshow(cv.cvtColor(ref, cv.COLOR_BGR2RGB))
+axs[0].set_title('Original')
+axs[1].imshow(cv.cvtColor(degraded, cv.COLOR_BGR2RGB))
+axs[1].set_title('Degraded')
+axs[2].imshow(cv.cvtColor(output, cv.COLOR_BGR2RGB))
+axs[2].set_title('SRCNN')
+
+# remove the x and y ticks
+for ax in axs:
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+for file in os.listdir('images'):
+
+    # perform super-resolution
+    ref, degraded, output, scores = predict('images/{}'.format(file))
+
+    # display images as subplots
+    fig, axs = plt.subplots(1, 3, figsize=(20, 8))
+    axs[0].imshow(cv.cvtColor(ref, cv.COLOR_BGR2RGB))
+    axs[0].set_title('Original')
+    axs[1].imshow(cv.cvtColor(degraded, cv.COLOR_BGR2RGB))
+    axs[1].set_title('Degraded')
+    axs[1].set(xlabel = 'PSNR: {}\nMSE: {} \nSSIM: {}'.format(scores[0][0], scores[0][1], scores[0][2]))
+    axs[2].imshow(cv.cvtColor(output, cv.COLOR_BGR2RGB))
+    axs[2].set_title('SRCNN')
+    axs[2].set(xlabel = 'PSNR: {} \nMSE: {} \nSSIM: {}'.format(scores[1][0], scores[1][1], scores[1][2]))
+
+    # remove the x and y ticks
+    for ax in axs:
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    print('Saving {}'.format(file))
+    fig.savefig('output/{}.png'.format(os.path.splitext(file)[0]))
+    plt.close()

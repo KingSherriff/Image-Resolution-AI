@@ -1,4 +1,5 @@
 from random import randint
+import random
 import numpy as np
 from operator import itemgetter
 
@@ -74,6 +75,19 @@ def bind(x, y):
     #print(binded)
     return binded
 
+#def bind(fullList):
+#    i = 0
+#    binded = fullList[0]
+#    while i < len(fullList):
+#        if i > 0:
+#            binded = [binded[index] ^ fullList[i][index] for index in range(N)]
+#            for i in range(N):
+#                if binded[i] == -2:
+#                    binded[i] = -1
+#                elif binded[i] == 0:
+#                    binded[i] = 1
+#    return binded
+
 def shift(x, k = 1):
     lst = np.array(x)
     shifted = np.roll(lst, k)
@@ -84,3 +98,51 @@ def compare(x, y):
     compared = np.dot(x, y)/(np.linalg.norm(x) * np.linalg.norm(y))
     #print(compared)
     return compared
+
+def rangeHdvs(steps):
+    k = len(steps) - 1
+    v = hdv(k + 1)
+    for i in range(1, k + 1):
+        for j in range(0, N):
+            v[i][j] = -v[i-1][j] if random.random() < 1 / k else v[i-1][j]
+    return v
+
+def testCompareOpposite():
+    x = []
+    y = []
+    for a in range(N):
+        x.append(-1)
+    for b in range(N):
+        y.append(1)
+    testCompared = compare(x, y)
+    #print(testCompared)
+    return testCompared
+
+def testCompareAveragePos():
+    x = hdv(1)
+    y = []
+    for a in range(N):
+        y.append(1)
+    testCompareAveragePos = compare(x, y)
+    #print(testCompareAveragePos)
+    return testCompareAveragePos
+
+def testCompareAverageNeg():
+    x = hdv(1)
+    y = []
+    for a in range(N):
+        y.append(-1)
+    testCompareAverageNeg = compare(x, y)
+    #print(testCompareAverageNeg)
+    return testCompareAverageNeg
+
+def testSimilarPos():
+    x = []
+    y = []
+    for a in range(N):
+        x.append(1)
+        y.append(1)
+    y[0] = -1
+    testCompared = compare(x, y)
+    #print(testCompared)
+    return testCompared
